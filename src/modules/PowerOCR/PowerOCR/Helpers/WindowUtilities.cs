@@ -3,6 +3,9 @@
 // See the LICENSE file in the project root for more information.
 
 using System;
+using System.Drawing;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Input;
@@ -22,10 +25,20 @@ public static class WindowUtilities
         }
 
         Logger.LogInfo($"Adding Overlays for each screen");
+        IntPtr foregroundWindowHandle = GetForegroundWindow();
+        GetClientRect(foregroundWindowHandle, out RECT foregroundWindowRect);
+        var foregroundWindowRectangle = RECTToRectangle(foregroundWindowRect);
+        var screenPoint = new POINT(foregroundWindowRectangle.Left, foregroundWindowRectangle.Top);
+        ClientToScreen(foregroundWindowHandle, ref screenPoint);
+        foregroundWindowRectangle.Location = screenPoint;
+        var sb = new StringBuilder(1000);
+        var res = GetWindowText(foregroundWindowHandle, sb, 1000);
+        Logger.LogInfo($"{foregroundWindowRectangle.Left}, {foregroundWindowRectangle.Top}, {foregroundWindowRectangle.Right}, {foregroundWindowRectangle.Bottom}, {foregroundWindowRectangle.Width}, {foregroundWindowRectangle.Height}");
+        Logger.LogInfo($"foreground window {sb.ToString()}");
         foreach (Screen screen in Screen.AllScreens)
         {
             Logger.LogInfo($"screen {screen}");
-            OCROverlay overlay = new(screen.Bounds);
+            OCROverlay overlay = new(screen.Bounds, foregroundWindowRectangle);
 
             overlay.Show();
             ActivateWindow(overlay);
@@ -104,5 +117,63 @@ public static class WindowUtilities
                 overlay.KeyPressed(key, isActive);
             }
         }
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+    private static Rectangle RECTToRectangle(RECT r)
+    {
+        return new Rectangle(r.Left, r.Top, r.Right - r.Left, r.Bottom - r.Top);
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
+
+    [DllImport("user32.dll")]
+    private static extern bool ClientToScreen(IntPtr hWnd, ref POINT lpPoint);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT
+    {
+        public int X;
+        public int Y;
+
+        public POINT(int x, int y)
+        {
+            this.X = x;
+            this.Y = y;
+        }
+
+        public static implicit operator System.Drawing.Point(POINT p)
+        {
+            return new System.Drawing.Point(p.X, p.Y);
+        }
+
+        public static implicit operator POINT(System.Drawing.Point p)
+        {
+            return new POINT(p.X, p.Y);
+        }
+
+        public override string ToString()
+        {
+            return $"X: {X}, Y: {Y}";
+        }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int Left;        // x position of upper-left corner
+        public int Top;         // y position of upper-left corner
+        public int Right;       // x position of lower-right corner
+        public int Bottom;      // y position of lower-right corner
     }
 }

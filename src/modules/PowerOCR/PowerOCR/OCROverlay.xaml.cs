@@ -34,6 +34,8 @@ public partial class OCROverlay : Window
 
     private bool IsSelecting { get; set; }
 
+    public System.Drawing.Rectangle ForegroundWindowRectangle { get; }
+
     private double selectLeft;
     private double selectTop;
 
@@ -43,7 +45,7 @@ public partial class OCROverlay : Window
     private const double ActiveOpacity = 0.4;
     private readonly UserSettings userSettings = new(new ThrottledActionInvoker());
 
-    public OCROverlay(System.Drawing.Rectangle screenRectangle)
+    public OCROverlay(System.Drawing.Rectangle screenRectangle, System.Drawing.Rectangle foregroundWindowRectangle)
     {
         Left = screenRectangle.Left >= 0 ? screenRectangle.Left : screenRectangle.Left + (screenRectangle.Width / 2);
         Top = screenRectangle.Top >= 0 ? screenRectangle.Top : screenRectangle.Top + (screenRectangle.Height / 2);
@@ -51,6 +53,7 @@ public partial class OCROverlay : Window
         InitializeComponent();
 
         PopulateLanguageMenu();
+        ForegroundWindowRectangle = foregroundWindowRectangle;
     }
 
     private void PopulateLanguageMenu()
@@ -418,7 +421,7 @@ public partial class OCROverlay : Window
         return false;
     }
 
-    internal void KeyPressed(Key key, bool? isActive)
+    internal async void KeyPressed(Key key, bool? isActive)
     {
         switch (key)
         {
@@ -469,6 +472,11 @@ public partial class OCROverlay : Window
                     LanguagesComboBox.SelectedIndex = numberPressed - 1;
                 }
 
+                break;
+            case Key.Enter:
+                string grabbedText = await ImageMethods.GetRegionsText(this, ForegroundWindowRectangle, selectedLanguage);
+                Clipboard.SetText(grabbedText);
+                WindowUtilities.CloseAllOCROverlays();
                 break;
             default:
                 break;
